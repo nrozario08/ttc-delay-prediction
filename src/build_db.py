@@ -71,11 +71,15 @@ def main():
         codes.to_sql("delay_codes", con, index=False)
         print(f"wrote {len(delays):,} raw rows to {DB_PATH}")
 
-        # cleaning happens in SQL
-        with open(os.path.join("sql", "01_clean.sql")) as f:
-            con.executescript(f.read())
+        # cleaning and feature building happen in SQL, run the files in order
+        for path in sorted(glob.glob(os.path.join("sql", "0*.sql"))):
+            with open(path) as f:
+                con.executescript(f.read())
+            print(f"ran {path}")
         n = con.execute("SELECT COUNT(*) FROM delays").fetchone()[0]
+        m = con.execute("SELECT COUNT(*), AVG(major_delay) FROM model_data").fetchone()
         print(f"delays table: {n:,} rows after cleaning")
+        print(f"model_data: {m[0]:,} rows, {m[1]:.1%} are major delays")
 
 
 if __name__ == "__main__":
