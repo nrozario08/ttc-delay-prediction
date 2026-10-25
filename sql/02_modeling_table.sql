@@ -11,6 +11,33 @@
 --   * vehicle  - just an id number, and 0 for most rows
 --   * year     - the split is by time instead, so the model can't lean on the year
 
+-- "How busy was the system just before this incident?" Counts how many other incidents
+-- were logged in the hour before, on the same line and across the whole subway. Only
+-- earlier logging times are used (not their delay minutes, which may not be known yet).
+DROP TABLE IF EXISTS recent_activity;
+CREATE TABLE recent_activity AS
+WITH stamped AS (
+    SELECT
+        rowid AS incident_id,
+        line,
+        CAST(STRFTIME('%s', delay_date || ' ' || time_of_day || ':00') AS INTEGER) AS ts
+    FROM delays
+)
+SELECT
+    incident_id,
+    COUNT(*) OVER (
+        PARTITION BY line ORDER BY ts
+        RANGE BETWEEN 3600 PRECEDING AND 1 PRECEDING
+    ) AS line_incidents_prev_hour,
+    COUNT(*) OVER (
+        ORDER BY ts
+        RANGE BETWEEN 3600 PRECEDING AND 1 PRECEDING
+    ) AS system_incidents_prev_hour
+FROM stamped;
+
+CREATE INDEX idx_recent_id ON recent_activity (incident_id);
+
+
 DROP TABLE IF EXISTS model_data;
 CREATE TABLE model_data AS
 SELECT
@@ -29,9 +56,12 @@ SELECT
     COALESCE(d.direction, 'NONE')                     AS direction,
     d.code,
     d.category,
+    r.line_incidents_prev_hour,
+    r.system_incidents_prev_hour,
     d.min_delay,
     CASE WHEN d.min_delay >= 10 THEN 1 ELSE 0 END    AS major_delay
 FROM delays d
-LEFT JOIN station_dim s ON s.station = d.station;
+LEFT JOIN station_dim s    ON s.station = d.station
+JOIN recent_activity r     ON r.incident_id = d.rowid;
 
 CREATE INDEX idx_model_year ON model_data (year);
