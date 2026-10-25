@@ -39,14 +39,14 @@ def linear_preprocessor():
     # for logistic regression: hour is treated as a category so it can learn the rush hour bumps
     return ColumnTransformer([
         ("cat", one_hot(), CAT_FEATURES + ["hour"]),
-        ("num", StandardScaler(), ["month", "is_weekend", "is_rush_hour"]),
+        ("num", StandardScaler(), [c for c in NUM_FEATURES if c != "hour"]),
     ])
 
 
-def tree_preprocessor():
+def tree_preprocessor(num_features=NUM_FEATURES):
     return ColumnTransformer([
         ("cat", one_hot(), CAT_FEATURES),
-        ("num", "passthrough", NUM_FEATURES),
+        ("num", "passthrough", num_features),
     ])
 
 
@@ -127,8 +127,17 @@ def main():
         ("model", HistGradientBoostingClassifier(max_iter=300, early_stopping=True, random_state=SEED, **best_params)),
     ]).fit(Xtr, ytr))
 
+    # ablation: does the "how busy was the last hour" idea add anything?
+    # (the preprocessor only looks at the columns it is given, so the extra columns are just ignored)
+    base_num = [c for c in NUM_FEATURES if "prev_hour" not in c]
+    record("GB without recent activity", Pipeline([
+        ("prep", tree_preprocessor(base_num)),
+        ("model", HistGradientBoostingClassifier(max_iter=300, early_stopping=True, random_state=SEED, **best_params)),
+    ]).fit(Xtr, ytr))
+
     # --- pick the best by validation PR-AUC and set an alert threshold on validation ---
-    best_name = max((n for n in results if n not in ("Always the base rate", "Delay code rate only")),
+    not_candidates = ("Always the base rate", "Delay code rate only", "GB without recent activity")
+    best_name = max((n for n in results if n not in not_candidates),
                     key=lambda n: results[n]["val"]["pr_auc"])
     best = fitted[best_name]
     threshold = best_f1_threshold(yva, proba(best, Xva))

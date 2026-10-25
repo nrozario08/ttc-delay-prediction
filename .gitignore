@@ -7,3 +7,4 @@ __pycache__/
 data/raw/
 # the sqlite file gets rebuilt by src/build_db.py
 *.db
+models/

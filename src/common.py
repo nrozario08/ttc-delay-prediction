@@ -9,7 +9,8 @@ from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_s
 DB_PATH = os.path.join("data", "ttc.db")
 
 CAT_FEATURES = ["weekday", "station", "line", "direction", "code"]
-NUM_FEATURES = ["hour", "month", "is_weekend", "is_rush_hour"]
+NUM_FEATURES = ["hour", "month", "is_weekend", "is_rush_hour",
+                "line_incidents_prev_hour", "system_incidents_prev_hour"]
 FEATURES = NUM_FEATURES + CAT_FEATURES
 TARGET = "major_delay"
 
